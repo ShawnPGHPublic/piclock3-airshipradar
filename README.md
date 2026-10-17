@@ -3,6 +3,8 @@
 A [PiClock3](https://github.com/n0bel/PiClock3) widget. A simulated radar of
 ships and aircraft around a latitude and longitude, plotted on one scope.
 
+<img width="367" height="336" alt="image" src="https://github.com/user-attachments/assets/b5646fca-c1bb-40d5-b218-c779b0415a2d" />
+
 You set the center. The glass is the whole 360 degrees out to the radius
 you set, in miles, kilometers, or nautical miles. `bearing` only says which
 way is up. `0` is north. Targets inside the circle are a plan-position
