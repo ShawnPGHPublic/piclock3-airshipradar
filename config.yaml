@@ -1,0 +1,55 @@
+# Defaults, and the whole list of settings a config or a theme may set.
+# A name that is not here is not a setting.
+
+# which kind this is.  A theme reaches every instance at once with
+# kind-settings: traffic-radar:
+kind: traffic-radar
+
+# the station, the center of the circle. The page and the widget both read
+# this file. There are no controls on the scope. A clock that already knows
+# where it is may use '{location.latitude}' and '{location.longitude}'.
+latitude: 40.66
+longitude: -74.05
+
+# degrees true at the top of the scope.  0 is north-up.  The circle is
+# always the full 360 around the station; this only rotates the glass.
+bearing: 0
+
+# how far the circle reaches.  The caption prints this number and this unit.
+radius: 25
+radius-unit: mi
+
+# ships: openwaters polls a free AIS snapshot and needs no key.
+#         aishub polls AISHub.  aisstream holds a socket while the page shows.
+#         off leaves the aircraft and draws no ships.
+ships: openwaters
+
+# flights: adsb polls adsb.lol and needs no key.
+#          opensky polls the OpenSky Network and needs no key.
+#          off leaves the ships and draws no aircraft.
+flights: adsb
+
+# both resolve from the clock's ApiKeys.yaml.  Used only for aishub / aisstream.
+# A missing key draws the scope and says so; it does not invent traffic.
+username: '{apikeys.aishub}'
+apikey: '{apikeys.aisstream}'
+
+# seconds.  AISHub is never asked more than once a minute.  The free flight
+# and Open Waters feeds are never asked more than once every 15 seconds.
+refresh: 20
+
+# drop a target this many minutes after it was last heard.
+max-age: 10
+
+# nearest targets kept, per layer, when the circle is crowded.
+max-targets: 400
+
+# seconds for the beam to go all the way around.
+sweep: 8
+
+# type key in the caption.  false leaves the counts only.
+legend: true
+
+# caption height, as a fraction of the region, the same way every widget
+# sizes its text.
+font-size: 0.042

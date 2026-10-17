@@ -1,0 +1,23 @@
+name: Circle
+description: Full-circle traffic scope on the left, clock on the right
+
+designed-for: '16:9'
+
+regions:
+
+  # new name.  A layout that ships with a plugin may add one, never replace
+  # one that already exists.  Width matches a 16:9 screen so the circle can
+  # use the full height.
+  radar:  {left: 0.0, top: 0.0, width: 0.56, height: 1.0}
+
+  date:   {left: 0.56, right: 0.0, top: 0.0, height: 0.12, style: date}
+  clock:  {left: 0.64, width: 0.30, aspect: 1.0, vertical-center: 0.0}
+  bottom: {left: 0.56, right: 0.0, bottom: 0.0, height: 0.10, style: bottom}
+
+layout-style-settings:
+  date:
+    font-size: 0
+    qproperty-alignment: AlignCenter
+  bottom:
+    font-size: 0
+    qproperty-alignment: AlignCenter

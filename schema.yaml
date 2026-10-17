@@ -1,0 +1,83 @@
+# The shape of config.yaml.  Required: without it the clock will not load
+# the plugin.  Defaults live in config.yaml, not here.
+
+description: >
+  A full-circle radar.  Ships and aircraft around a latitude and longitude
+  you set, on one scope.  Ships come from AIS.  Aircraft come from a free
+  flight feed.  North is at the top unless bearing says otherwise.  The
+  caption under the glass is the radius, the counts, and the time a feed
+  last answered.  How big it is on the page is the layout region.
+
+settings:
+
+  latitude:
+    of: [number, string]
+    help: Latitude of the station the circle is centered on.  A number, or
+      a brace name such as {location.latitude}.
+  longitude:
+    of: [number, string]
+    help: Longitude of the station.  A number, or a brace name such as
+      {location.longitude}.
+  bearing:
+    is: number
+    range: [0, 360]
+    unit: degrees
+    help: Which true bearing sits at the top of the scope.  0 is north.
+      Tracking is the full circle either way.
+  radius:
+    is: number
+    range: [0.5, 250]
+    help: How far the circle reaches, in radius-unit.  Open Waters refuses
+      a box much past a hundred square degrees, so a very wide radius on
+      that ship feed is reported instead of requested.
+  radius-unit:
+    is: string
+    help: mi, km, or nm.  The caption prints the radius in this unit.
+  ships:
+    is: string
+    help: openwaters, aishub, aisstream, or off.  openwaters needs no key.
+  flights:
+    is: string
+    help: adsb, opensky, or off.  Both flight feeds are free and need no key.
+      adsb is adsb.lol.  opensky is the OpenSky Network.
+  username:
+    is: string
+    help: AISHub username.  Write {apikeys.aishub} and put the username in
+      ApiKeys.yaml.  Used only when ships is aishub.
+  apikey:
+    is: string
+    help: AISStream API key.  Write {apikeys.aisstream} and put the key in
+      ApiKeys.yaml.  Used only when ships is aisstream.
+  refresh:
+    is: number
+    unit: seconds
+    range: [5, 86400]
+    help: How often a polled feed is asked, and how often a dropped
+      AISStream socket is tried again.  AISHub is never asked more than
+      once a minute.  adsb.lol, OpenSky, and Open Waters wait at least
+      15 seconds.
+  max-age:
+    is: number
+    unit: minutes
+    range: [1, 180]
+    help: How long a target stays on the scope after its last report.
+      A snapshot feed replaces its layer on each reply.
+  max-targets:
+    is: number
+    range: [1, 2000]
+    help: How many of the nearest targets are drawn, per layer, when the
+      circle is crowded.
+  sweep:
+    is: number
+    unit: seconds
+    range: [2, 60]
+    help: How long the beam takes to go all the way around.
+  legend:
+    is: bool
+    help: Color the ship count and the aircraft count in the caption.
+      false prints them in the theme color.
+  font-size:
+    is: font-size
+    help: How tall the caption is, as a fraction of the region's height or
+      as a measure such as 16px.  The widget's display size is the region
+      the layout gives it.

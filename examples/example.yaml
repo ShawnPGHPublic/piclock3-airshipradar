@@ -1,0 +1,50 @@
+# A clock with the full-circle scope in it, from the top of a PiClock3 checkout:
+#
+#   python3 PyQtPiClock3.py plugins/TrafficRadar/examples/example.yaml
+#
+# Ships and aircraft both draw with no key.  openwaters and adsb are the
+# defaults.  AISHub and AISStream stay available, and still want a key in
+# ApiKeys.yaml.  The circle is the full 360 around the station.
+
+pages:
+  clock-page: {order: 0, layout: circle, theme: circuit}
+
+language: en
+
+location:
+  latitude: 40.66
+  longitude: -74.05
+  timezone: America/New_York
+
+# Uncomment once the file exists beside PyQtPiClock3.py, and only if you
+# switch ships to aishub or aisstream.  A config that includes a file that
+# is not there will not start.
+#
+# apikeys: !include ApiKeys.yaml
+#
+# ApiKeys.yaml:
+#   aishub: YOUR_USERNAME
+#   aisstream: YOUR_KEY
+
+widgets:
+  clock: {plugin: PiClock3.AnalogClock, region: clock}
+  date:  {plugin: PiClock3.Date, region: date}
+
+  # plugin: names the folder this was cloned into.
+  # The region name is the one layouts/circle.yaml adds.  Make the widget
+  # larger or smaller by changing that region's width and height - fractions
+  # of the screen, the same way every other widget is sized.
+  traffic:
+    plugin: plugins.AirShipRadar
+    region: radar
+    latitude: 40.66
+    longitude: -74.05
+    bearing: 0
+    radius: 25
+    radius-unit: mi
+    ships: openwaters
+    flights: adsb
+    refresh: 20
+    font-size: 0.042
+
+logging-level: info
