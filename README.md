@@ -1,6 +1,6 @@
-# Full Circle
+# Air Ship Radar
 
-A [PiClock3](https://github.com/n0bel/PiClock3) widget. A full circle of
+A [PiClock3](https://github.com/n0bel/PiClock3) widget. A simulated radar of
 ships and aircraft around a latitude and longitude, plotted on one scope.
 
 You set the center. The glass is the whole 360 degrees out to the radius
@@ -72,7 +72,7 @@ A page that is not showing closes the AISStream socket and does not poll.
 From the top of a PiClock3 checkout:
 
 ```
-git clone <this plugin> plugins/AirShipRadar
+git clone https://github.com/you/piclock3-airshipradar plugins/AirShipRadar
 python3 PyQtPiClock3.py plugins/AirShipRadar/examples/example.yaml
 ```
 
