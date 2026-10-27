@@ -40,6 +40,7 @@ Ships and aircraft are separate settings. Both can be on. Either can be
 | `ships` | `openwaters` | Polls the [Open Waters](https://openwaters.io/ais/) AIS snapshot | none |
 | `ships` | `aishub` | Polls [AISHub](https://www.aishub.net/api), at most once a minute | `username` |
 | `ships` | `aisstream` | Holds [AISStream](https://aisstream.io/documentation) open while the page is showing | `apikey` |
+| `ships` | `aiscatcher` | Polls an [AIS-catcher](https://github.com/jvde-github/AIS-catcher) on this LAN | none for the web viewer. `token` only if `aiscatcher-url` is an `/api/v1` service that requires a key |
 | `flights` | `adsb` | Polls [adsb.lol](https://api.adsb.lol/v2/lat/0/lon/0/dist/25), a free ADS-B feed | none |
 | `flights` | `opensky` | Polls the [OpenSky Network](https://openskynetwork.github.io/opensky-api/rest.html) state vectors | none |
 
@@ -66,6 +67,55 @@ The defaults are already `{apikeys.aishub}` and `{apikeys.aisstream}`.
 With no key, an AISHub or AISStream scope still draws and the caption
 says `no key`. It does not invent ships. `openwaters` and `adsb` do not
 look at those keys.
+
+## AIS-catcher on the same network
+
+`ships: aiscatcher` reads a station you run. Aircraft stay on `flights`
+(`adsb` or `opensky`) unless you turn them `off`. This is your receiver,
+not the aiscatcher.org sharing site.
+
+On the machine with the radio, managed mode (`AIS-catcher -E ... 0.0.0.0:8118`)
+serves the control panel on 8118 and the web viewer on the next port, 8119.
+The viewer is the page with the map. The control panel is not this list.
+A standalone `AIS-catcher -N 8100` is the same list on 8100 instead. In the widget:
+
+```yaml
+ships: aiscatcher
+aiscatcher-url: http://192.168.1.50:8119
+refresh: 10
+```
+
+A host and port is enough. The widget requests `/api/ships.json`.
+`http://127.0.0.1:8119` is the default, for AIS-catcher on the Pi itself.
+`refresh` may be as short as 5 seconds. AISHub's one-minute floor does
+not apply. Planes, base stations, and aids to navigation in that list are
+not drawn as ships. See `examples/aiscatcher.yaml`.
+
+If `/api/ships.json` answers 404 because only the newer HTTP API is on,
+give the full path:
+
+```yaml
+aiscatcher-url: http://192.168.1.50:8111/api/v1/vessels
+```
+
+The widget then asks for the box around the station, at most 1000 ships.
+A v1 API bound to the LAN rather than only `127.0.0.1` requires a key, or
+`"public": true` in the AIS-catcher config. The key goes out as
+`Authorization: Bearer`, and only to this ship feed:
+
+```yaml
+token: '{apikeys.aiscatcher}'
+```
+
+```yaml
+# ApiKeys.yaml
+aiscatcher: YOUR_KEY
+```
+
+Do not put the AISStream key in `token`. The open web viewer needs no
+token. Ships the station no longer lists leave the scope on the next
+reply. A ship it still lists is aged from how long ago the station heard
+it, then dropped after `max-age`.
 
 A page that is not showing closes the AISStream socket and does not poll.
 
@@ -122,10 +172,12 @@ python3 PyQtPiClock3.py plugins/AirShipRadar/examples/example.yaml --check
 | `latitude`, `longitude` | Center of the circle. A number, or `{location.latitude}`. |
 | `bearing` | Degrees true at the top. `0` is north. Tracking stays 360 either way. |
 | `radius`, `radius-unit` | Reach of the circle. `mi`, `km`, or `nm`. |
-| `ships` | `openwaters`, `aishub`, `aisstream`, or `off`. |
+| `ships` | `openwaters`, `aishub`, `aisstream`, `aiscatcher`, or `off`. Also `catcher` or `local`. |
 | `flights` | `adsb`, `opensky`, or `off`. |
+| `aiscatcher-url` | AIS-catcher web viewer. A host and port uses `/api/ships.json`. Default `http://127.0.0.1:8119`. |
 | `username`, `apikey` | `{apikeys.aishub}` and `{apikeys.aisstream}`. |
-| `refresh` | Seconds. AISHub waits at least 60. The free feeds wait at least 15. |
+| `token` | `{apikeys.aiscatcher}`, or empty. Bearer token for a locked v1 API. |
+| `refresh` | Seconds. AISHub waits at least 60. The free feeds wait at least 15. AIS-catcher may be every 5. |
 | `max-age` | Minutes a target stays after its last report. |
 | `max-targets` | Nearest targets kept, per layer, when the circle is crowded. |
 | `sweep` | Seconds for the beam to go all the way around. |
@@ -148,5 +200,6 @@ Vessel positions and aircraft positions are other people's receivers.
 - OpenSky Network — [opensky-network.org](https://opensky-network.org)
 - AISHub — [aishub.net](https://www.aishub.net)
 - AISStream — [aisstream.io](https://aisstream.io)
+- AIS-catcher — the receiver on your own network, [jvde-github/AIS-catcher](https://github.com/jvde-github/AIS-catcher)
 - Hull marks, AIS parsing, and the AISStream socket are derived from
   piclock3-ais-radar by ShawnPGHPublic, MIT.

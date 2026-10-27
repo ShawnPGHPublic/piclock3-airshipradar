@@ -43,6 +43,7 @@ widgets:
     radius: 25
     radius-unit: mi
     ships: openwaters
+    # ships: aiscatcher   see examples/aiscatcher.yaml
     flights: adsb
     refresh: 20
     font-size: 0.042

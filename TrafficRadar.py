@@ -7,6 +7,7 @@ read at once. North is at the top unless bearing says otherwise.
 
 Open Waters and adsb.lol need no key. AISHub is polled. AISStream stays
 open while the page is the one on screen, and is closed when it is not.
+AIS-catcher is polled on this network when ships is aiscatcher.
 """
 import logging
 import math
@@ -24,12 +25,14 @@ from PiClock3.Widget import Widget
 from .feeds import (
     adsb_url,
     aishub_url,
+    catcher_url,
     openwaters_url,
     opensky_url,
     planes_from_adsb,
     planes_from_opensky,
     ship_from_aisstream,
     ships_from_aishub,
+    ships_from_aiscatcher,
     ships_from_openwaters,
 )
 from .radarmath import (
@@ -355,18 +358,21 @@ class Scope(QWidget):
 class _FetchThread(QThread):
     """one HTTP GET off the UI thread."""
 
-    def __init__(self, url):
+    def __init__(self, url, headers=None):
         super().__init__()
         self.url = url
+        self.headers = headers or {}
         self.body = b''
         self.error = ''
 
     def run(self):
         try:
-            req = Request(self.url, headers={
+            hdrs = {
                 'User-Agent': UA,
                 'Accept': 'application/json',
-            })
+            }
+            hdrs.update(self.headers)
+            req = Request(self.url, headers=hdrs)
             with urlopen(req, timeout=25) as resp:
                 self.body = resp.read()
         except Exception:
@@ -585,13 +591,32 @@ class TrafficRadar(Widget):
                 self.ship_status = 'no key'
                 return
             url = aishub_url(username, lat, lon, radius_m, self._max_age())
+            headers = None
+        elif mode == 'aiscatcher':
+            raw = self.config.get('aiscatcher-url') or ''
+            if not isinstance(raw, str):
+                raw = str(raw)
+            try:
+                raw = self.expand(raw).strip()
+            except Exception:
+                raw = raw.strip()
+            url, err = catcher_url(raw, lat, lon, radius_m, self._max_age())
+            if err:
+                self.ship_status = err
+                return
+            headers = {}
+            token = self._secret('token')
+            if token:
+                headers['Authorization'] = 'Bearer ' + token
         else:
             url = openwaters_url(lat, lon, radius_m)
             if not url:
                 self.ship_status = 'radius too wide'
                 return
-        self.ship_next = now + self._interval(mode == 'aishub')
-        self.ship_thread = _FetchThread(url)
+            headers = None
+        self.ship_next = now + self._interval(
+            'aiscatcher' if mode == 'aiscatcher' else mode == 'aishub')
+        self.ship_thread = _FetchThread(url, headers)
         self.ship_thread.mode = mode
         self.ship_thread.start()
 
@@ -638,7 +663,10 @@ class TrafficRadar(Widget):
         if thread.error or not thread.body:
             self.ship_status = thread.error or 'no reply'
             return
-        parser = ships_from_aishub if getattr(thread, 'mode', '') == 'aishub' else ships_from_openwaters
+        parser = {
+            'aishub': ships_from_aishub,
+            'aiscatcher': ships_from_aiscatcher,
+        }.get(getattr(thread, 'mode', ''), ships_from_openwaters)
         try:
             rows, err = parser(thread.body)
         except Exception:
@@ -649,9 +677,13 @@ class TrafficRadar(Widget):
             self.ship_status = err
             return
         now = time.time()
+        limit = self._max_age() * 60
         fresh = {}
         for vessel in rows:
-            vessel['seen'] = now
+            age = vessel.pop('age', None)
+            if age is not None and age > limit:
+                continue
+            vessel['seen'] = now if age is None else now - age
             remember_identity(self.identity, vessel)
             fresh[vessel['id']] = vessel
         self.ships = fresh
@@ -850,6 +882,8 @@ class TrafficRadar(Widget):
             return 'aishub'
         if name in ('aisstream', 'aisstream.io', 'stream'):
             return 'aisstream'
+        if name in ('aiscatcher', 'ais-catcher', 'catcher', 'local'):
+            return 'aiscatcher'
         return 'openwaters'
 
     def _planes_mode(self):
@@ -885,8 +919,10 @@ class TrafficRadar(Widget):
             seconds = int(float(self.config.get('refresh') or 20))
         except (TypeError, ValueError):
             seconds = 20
-        if aishub:
+        if aishub is True or aishub == 'aishub':
             return max(60, seconds)
+        if aishub == 'aiscatcher':
+            return max(5, seconds)
         return max(15, seconds)
 
     def _trace(self):

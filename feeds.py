@@ -1,6 +1,6 @@
 """Ship and aircraft feeds. No Qt.
 
-Ships: Open Waters (no key), AISHub, or AISStream.
+Ships: Open Waters (no key), AISHub, AISStream, or a local AIS-catcher.
 Aircraft: adsb.lol (no key), with OpenSky as the other free web feed.
 """
 import json
@@ -9,7 +9,9 @@ import math
 try:
     from .radarmath import (
         bounding_box,
+        catcher_request,
         parse_aishub,
+        parse_aiscatcher,
         parse_aisstream,
         ship_dims,
         ship_kind,
@@ -21,7 +23,9 @@ try:
 except ImportError:
     from radarmath import (
         bounding_box,
+        catcher_request,
         parse_aishub,
+        parse_aiscatcher,
         parse_aisstream,
         ship_dims,
         ship_kind,
@@ -65,6 +69,16 @@ def aishub_url(username, lat, lon, radius_m, minutes):
     )
 
 
+def catcher_url(station, lat, lon, radius_m, minutes):
+    """(url, error) for an AIS-catcher on this network."""
+    box = bounding_box(lat, lon, radius_m)
+    try:
+        age = int(minutes) * 60
+    except (TypeError, ValueError):
+        age = None
+    return catcher_request(station, box, age)
+
+
 def adsb_url(lat, lon, radius_m):
     nm = int(round(radius_m / 1852.0))
     nm = max(1, min(250, nm))
@@ -101,6 +115,17 @@ def ships_from_openwaters(body):
 
 def ships_from_aishub(body):
     vessels, err = parse_aishub(body)
+    if err:
+        return [], err
+    return [_as_ship(item) for item in vessels], None
+
+
+def ships_from_aiscatcher(body):
+    """(vessels, error). An empty list is a clear scope, not a failure.
+
+    Each ship may carry age, seconds since the station heard it.
+    """
+    vessels, err = parse_aiscatcher(body)
     if err:
         return [], err
     return [_as_ship(item) for item in vessels], None

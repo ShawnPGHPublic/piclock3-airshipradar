@@ -3,10 +3,11 @@
 
 description: >
   A full-circle radar.  Ships and aircraft around a latitude and longitude
-  you set, on one scope.  Ships come from AIS.  Aircraft come from a free
-  flight feed.  North is at the top unless bearing says otherwise.  The
-  caption under the glass is the radius, the counts, and the time a feed
-  last answered.  How big it is on the page is the layout region.
+  you set, on one scope.  Ships come from AIS, including an AIS-catcher
+  on this network.  Aircraft come from a free flight feed.  North is at
+  the top unless bearing says otherwise.  The caption under the glass is
+  the radius, the counts, and the time a feed last answered.  How big it
+  is on the page is the layout region.
 
 settings:
 
@@ -35,11 +36,19 @@ settings:
     help: mi, km, or nm.  The caption prints the radius in this unit.
   ships:
     is: string
-    help: openwaters, aishub, aisstream, or off.  openwaters needs no key.
+    help: openwaters, aishub, aisstream, aiscatcher, or off.  openwaters
+      needs no key.  aiscatcher polls a station on this network.
   flights:
     is: string
     help: adsb, opensky, or off.  Both flight feeds are free and need no key.
       adsb is adsb.lol.  opensky is the OpenSky Network.
+  aiscatcher-url:
+    is: string
+    help: AIS-catcher web viewer, only when ships is aiscatcher.  A host
+      and port such as http://192.168.1.50:8119 uses /api/ships.json.
+      8119 is the viewer beside a control panel on 8118.  Point this at
+      the map, not the control panel.  If that path 404s, set the full
+      /api/v1/vessels URL instead.
   username:
     is: string
     help: AISHub username.  Write {apikeys.aishub} and put the username in
@@ -48,6 +57,11 @@ settings:
     is: string
     help: AISStream API key.  Write {apikeys.aisstream} and put the key in
       ApiKeys.yaml.  Used only when ships is aisstream.
+  token:
+    is: string
+    help: Optional Bearer token for an AIS-catcher API that requires one.
+      Write {apikeys.aiscatcher}.  Leave empty for the open web viewer.
+      Not used for AISHub or AISStream, and not the AISStream key.
   refresh:
     is: number
     unit: seconds
@@ -55,7 +69,7 @@ settings:
     help: How often a polled feed is asked, and how often a dropped
       AISStream socket is tried again.  AISHub is never asked more than
       once a minute.  adsb.lol, OpenSky, and Open Waters wait at least
-      15 seconds.
+      15 seconds.  AIS-catcher may be asked every 5 seconds.
   max-age:
     is: number
     unit: minutes

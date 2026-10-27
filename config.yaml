@@ -21,8 +21,16 @@ radius-unit: mi
 
 # ships: openwaters polls a free AIS snapshot and needs no key.
 #         aishub polls AISHub.  aisstream holds a socket while the page shows.
+#         aiscatcher polls an AIS-catcher on this network.  Managed mode
+#         (-E ... 0.0.0.0:8118) serves the map on the next port, 8119.
+#         That is the page with the map, not the control panel.  A host
+#         and port is enough; the path defaults to /api/ships.json.
 #         off leaves the aircraft and draws no ships.
 ships: openwaters
+
+# the station, only when ships is aiscatcher.  The Pi itself, unless you
+# point this at another machine on the LAN.  8119 is the managed viewer.
+aiscatcher-url: http://127.0.0.1:8119
 
 # flights: adsb polls adsb.lol and needs no key.
 #          opensky polls the OpenSky Network and needs no key.
@@ -34,8 +42,15 @@ flights: adsb
 username: '{apikeys.aishub}'
 apikey: '{apikeys.aisstream}'
 
+# Bearer token for an AIS-catcher /api/v1 API that is not open.  Leave
+# blank for the web viewer.  Write {apikeys.aiscatcher} and put the key
+# in ApiKeys.yaml.  This is not the AISStream key, and it is not sent
+# anywhere else.
+token: ''
+
 # seconds.  AISHub is never asked more than once a minute.  The free flight
 # and Open Waters feeds are never asked more than once every 15 seconds.
+# AIS-catcher may be asked every 5 seconds.
 refresh: 20
 
 # drop a target this many minutes after it was last heard.

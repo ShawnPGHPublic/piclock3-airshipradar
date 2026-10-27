@@ -4,6 +4,7 @@ Derived from piclock3-ais-radar (MIT). The scope is the full disk.
 """
 import json
 import math
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 M_PER_DEG_LAT = 111320.0
 MI_TO_M = 1609.344
@@ -404,3 +405,223 @@ def _angle(value):
     if number is None or number < 0 or number >= COG_NOT_AVAILABLE:
         return None
     return number % 360.0
+
+
+# AIS-catcher ShippingClass, the order of the sprites in its web viewer.
+# Planes, base stations, and AtoN are tracked too; they are not hulls.
+_CLASS_NUM = {
+    2: 'cargo',
+    3: 'pleasure',
+    4: 'passenger',
+    6: 'tanker',
+    7: 'fast',
+    8: 'fishing',
+}
+_SKIP_CLASS_NUM = (9, 10, 11, 12, 13)
+_SKIP_CLASS_NAME = {
+    'plane', 'aircraft', 'helicopter', 'heli',
+    'station', 'base_station', 'aton', 'aton_virtual',
+    'sart', 'sartepirb', 'epirb',
+}
+_CLASS_NAME = {
+    'cargo': 'cargo',
+    'tanker': 'tanker',
+    'passenger': 'passenger',
+    'fishing': 'fishing',
+    'high_speed': 'fast',
+    'highspeed': 'fast',
+    'class_b': 'pleasure',
+    'pleasure': 'pleasure',
+    'tug': 'tug',
+    'fast': 'fast',
+}
+_LIST_KEYS = ('ships', 'vessels', 'data', 'msgs')
+
+
+def catcher_request(url, box=None, max_age_s=None):
+    """(url, error). error is a short caption, or None.
+
+    A host and port, or a URL with no path, is the web viewer:
+    http://that-host/api/ships.json. The /api/v1/vessels list is asked
+    only for the box around the station.
+    """
+    text = str(url or '').strip()
+    if not text:
+        return '', 'no station'
+    if '://' not in text:
+        text = 'http://' + text
+    parts = urlsplit(text)
+    if parts.scheme not in ('http', 'https') or not parts.netloc:
+        return '', 'bad station'
+    path = parts.path or ''
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    have = set(key for key, _value in query)
+    if path in ('', '/'):
+        path = '/api/ships.json'
+    if path.rstrip('/') == '/api/v1/vessels':
+        if 'limit' not in have:
+            query.append(('limit', '1000'))
+        if box and 'bbox' not in have:
+            query.append(('bbox', '%.5f,%.5f,%.5f,%.5f' % (
+                box['lonmin'], box['latmin'], box['lonmax'], box['latmax'])))
+        if max_age_s and 'max_age_s' not in have:
+            try:
+                query.append(('max_age_s', '%d' % int(max_age_s)))
+            except (TypeError, ValueError):
+                pass
+    return urlunsplit((parts.scheme, parts.netloc, path,
+                       urlencode(query), '')), None
+
+
+def parse_aiscatcher(body):
+    """(vessels, error). error is a short caption, or None on a real reply.
+
+    An empty ship list is a success: the scope is clear, not broken.
+    Reads the web viewer's /api/ships.json, GeoJSON from /geojson, and
+    the /api/v1/vessels list. Planes, base stations, and aids to navigation
+    are left out; this layer is ships.
+    """
+    if isinstance(body, (bytes, bytearray)):
+        body = body.decode('utf-8', 'replace')
+    try:
+        data = json.loads(body) if isinstance(body, str) else body
+    except (TypeError, ValueError):
+        return [], 'bad reply'
+    rows, err = _catcher_rows(data)
+    if err:
+        return [], err
+    vessels = []
+    for row in rows:
+        vessel = _from_catcher(row)
+        if vessel is not None:
+            vessels.append(vessel)
+    return vessels, None
+
+
+def _catcher_rows(data):
+    if isinstance(data, list):
+        return data, None
+    if not isinstance(data, dict):
+        return [], 'bad reply'
+    err = _catcher_error(data)
+    if err:
+        return [], err
+    kind = str(data.get('type') or '')
+    if kind == 'FeatureCollection' and isinstance(data.get('features'), list):
+        return data['features'], None
+    if kind == 'Feature':
+        return [data], None
+    for key in _LIST_KEYS:
+        rows = data.get(key)
+        if isinstance(rows, list):
+            return rows, None
+    if _first(data, 'mmsi', 'MMSI') is not None or _first(data, 'lat', 'latitude') is not None:
+        return [data], None
+    if data.get('error') is False or 'count' in data:
+        return [], None
+    return [], 'bad reply'
+
+
+def _catcher_error(data):
+    flag = data.get('error')
+    if flag in (False, None, 0, 'false', 'FALSE', 'False', ''):
+        return None
+    if flag is True:
+        message = data.get('error_message') or data.get('detail') or data.get('title') or 'rejected'
+        return _short(message)
+    if isinstance(flag, str):
+        return _short(flag)
+    return None
+
+
+def _from_catcher(row):
+    if not isinstance(row, dict):
+        return None
+    if str(row.get('type') or '') == 'Feature':
+        props = row.get('properties') if isinstance(row.get('properties'), dict) else {}
+        merged = dict(props)
+        geom = row.get('geometry') if isinstance(row.get('geometry'), dict) else {}
+        coords = geom.get('coordinates')
+        if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+            merged.setdefault('lon', coords[0])
+            merged.setdefault('lat', coords[1])
+        row = merged
+    return _from_catcher_row(row)
+
+
+def _from_catcher_row(row):
+    lat = _first_num(row, 'lat', 'latitude', 'LATITUDE')
+    lon = _first_num(row, 'lon', 'longitude', 'LONGITUDE')
+    if lat is None or lon is None:
+        return None
+    if not -90 <= lat <= 90 or not -180 <= lon <= 180:
+        return None
+    if _catcher_nonship(row):
+        return None
+    length, beam = ship_dims(
+        _first(row, 'to_bow', 'to_bow_m', 'A'),
+        _first(row, 'to_stern', 'to_stern_m', 'B'),
+        _first(row, 'to_port', 'to_port_m', 'C'),
+        _first(row, 'to_starboard', 'to_starboard_m', 'D'))
+    if length is None:
+        length = _span_one(_first(row, 'length', 'length_m'))
+    if beam is None:
+        beam = _span_one(_first(row, 'beam', 'beam_m', 'width'))
+    age = _num(row.get('age_s'))
+    if age is None:
+        heard = _num(row.get('last_signal'))
+        # ships.json sends seconds since the message, not a unix time.
+        if heard is not None and 0 <= heard < 1000000000:
+            age = heard
+    vessel = {
+        'mmsi': str(_first(row, 'mmsi', 'MMSI') or ''),
+        'name': str(_first(row, 'shipname', 'name', 'NAME') or '').strip(),
+        'lat': lat,
+        'lon': lon,
+        'sog': _sog(_first(row, 'speed', 'speed_kn', 'sog', 'SOG')),
+        'cog': _angle(_first(row, 'cog', 'course', 'course_deg', 'COG')),
+        'heading': _angle(_first(row, 'heading', 'heading_deg', 'HEADING')),
+        'kind': _catcher_kind(row),
+        'length': length,
+        'beam': beam,
+        'name_only': False,
+    }
+    if age is not None and age >= 0:
+        vessel['age'] = age
+    return vessel
+
+
+def _span_one(value):
+    number = _num(value)
+    if number is None or number < 2 or number > 800:
+        return None
+    return number
+
+
+def _catcher_nonship(row):
+    """Planes, helicopters, base stations, and AtoN are not ship hulls.
+
+    A real ITU type still counts, even if the class code is odd.
+    """
+    if ship_kind(_first(row, 'shiptype', 'ship_type', 'TYPE')) != 'other':
+        return False
+    clas = row.get('class')
+    if isinstance(clas, str) and clas.strip().lower().replace('-', '_') in _SKIP_CLASS_NAME:
+        return True
+    number = _num(row.get('shipclass'))
+    return number is not None and int(number) in _SKIP_CLASS_NUM
+
+
+def _catcher_kind(row):
+    kind = ship_kind(_first(row, 'shiptype', 'ship_type', 'TYPE'))
+    if kind != 'other':
+        return kind
+    clas = row.get('class')
+    if isinstance(clas, str):
+        mapped = _CLASS_NAME.get(clas.strip().lower())
+        if mapped:
+            return mapped
+    number = _num(row.get('shipclass'))
+    if number is None:
+        return 'other'
+    return _CLASS_NUM.get(int(number), 'other')
